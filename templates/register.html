@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register</title>
+</head>
+<body>
+    <h1>Register</h1>
+    <form action="/register-handler" method="post">
+        Email: <input type="email" name="email"><br>
+        Username: <input type="text" name="username"><br>
+        Password: <input type="password" name="password"><br>
+        Company: <input type="text" name="company"><br>
+        Role: 
+        <select name="role">
+            <option value="user">Company User</option>
+            <option value="admin">Company Admin</option>
+            <option value="platformAdmin">Platform Admin</option>
+            <option value="superAdmin">Super Admin</option>
+        </select><br><br>
+        <input type="submit" value="Register">
+    </form>
+</body>
+</html>

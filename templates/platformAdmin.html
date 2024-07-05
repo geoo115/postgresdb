@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platform Admin Page</title>
+    <!-- Include any CSS frameworks or stylesheets here -->
+    <style>
+        /* Add your custom styles here */
+    </style>
+</head>
+<body>
+    <h1>Welcome {{.Username}}, Platform Admin! {{.CompanyName}}</h1>
+    <!-- Form to create a new company -->
+    <h2>Create New Company</h2>
+    <form action="/create-company" method="POST">
+        <label for="company-name">Company Name:</label>
+        <input type="text" id="company-name" name="name" required>
+        <button type="submit">Create Company</button>
+    </form>
+
+    <!-- Table to display existing companies -->
+    <h2>Existing Companies</h2>
+    <table border="1px">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Companies}}
+            <tr>
+                <td>{{.ID}}</td>
+                <td>{{.Name}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <!-- Form to create a new user -->
+    <h2>Create New User</h2>
+    <form action="/create-user" method="POST">
+        <label for="user-email">Email:</label>
+        <input type="email" id="user-email" name="email" required><br>
+        <label for="user-username">Username:</label>
+        <input type="text" id="user-username" name="username" required><br>
+        <label for="user-password">Password:</label>
+        <input type="password" id="user-password" name="password" required><br>
+        <label for="user-role">Role:</label>
+        <select id="user-role" name="role" required>
+            <option value="companyAdmin">Company Admin</option>
+            <option value="user">Standard User</option>
+        </select><br>
+        <label for="user-company">Company:</label>
+        <select id="user-company" name="company_id" required>
+            {{range .Companies}}
+            <option value="{{.ID}}">{{.Name}}</option>
+            {{end}}
+        </select><br>
+        <button type="submit">Create User</button>
+    </form>
+
+    <!-- Table to display existing users -->
+    <h2>Existing Users</h2>
+    <table border="1px">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Email</th>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Company</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .AllUsers}}
+            <tr>
+                <td>{{.ID}}</td>
+                <td>{{.Email}}</td>
+                <td>{{.Username}}</td>
+                <td>{{.Role}}</td>
+                <td>{{.CompanyName}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <h2>Referral Requests</h2>
+    <table border="1px">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Content</th>
+                <th>Referrer User</th>
+                <th>Client</th>
+                <th>Client Email</th>
+                <th>Created At</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .ReferralRequests}}
+            <tr>
+                <td>{{.ID}}</td>
+                <td>{{.Title}}</td>
+                <td>{{.Content}}</td>
+                <td>{{.Username}}</td>
+                <td>{{.RefereeClient}}</td>
+                <td>{{.RefereeClientEmail}}</td>
+                <td>{{.CreatedAt}}</td>
+                <td>{{.Status}}</td>
+                <td>
+                    <form action="/referral-request-handler" method="post">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <input type="submit" value="Approve" name="action">
+                        <input type="submit" value="Reject" name="action">
+                    </form>
+                </td>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="9">No referral requests found.</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <h2>Create Referral Request</h2>
+    <form action="/submit-referral-request" method="post">
+        Title: <input type="text" name="title"><br>
+        Content: <textarea name="content"></textarea><br>
+        Company:
+        <select name="company">
+            {{range .Companies}}
+            <option value="{{.ID}}">{{.Name}}</option>
+            {{end}}
+        </select><br>
+        Referee Client: <input type="text" name="referee_client"><br>
+        Referee Client Email: <input type="email" name="referee_client_email"><br>
+        <input type="submit" value="Submit">
+    </form>
+
+    <!-- Include any JavaScript frameworks or scripts here -->
+    <script>
+        // Add your custom JavaScript code here
+    </script>
+</body>
+</html>

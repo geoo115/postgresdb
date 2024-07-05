@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Profile Page</title>
+</head>
+<body>
+    <h1>Welcome {{.Username}} to Admin Profile for the {{.CompanyName}}</h1>
+    <a href="/logout">Logout</a>
+    
+    <h2>Company Referral Requests</h2>
+    <table border="1px">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Date</th>
+                <th>Content</th>
+                <th>Status</th>
+                <th>Referee Client</th>
+                <th>Referee Client Email</th>
+                <th>Referrer User</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .ReferralRequests}}
+            <tr>
+                <td>{{.Title}}</td>
+                <td>{{.CreatedAt}}</td>
+                <td>{{.Content}}</td>
+                <td>{{.Status}}</td>
+                <td>{{.RefereeClient}}</td>
+                <td>{{.RefereeClientEmail}}</td>
+                <td>{{.Username}}</td>
+                <td>
+                    <form action="/referral-request-handler" method="post">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <input type="submit" value="Approve" name="action">
+                        <input type="submit" value="Reject" name="action">
+                    </form>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+   
+
+    <h2>Company Users</h2>
+    <table border="1px">
+        <thead>
+            <tr>
+                <th>User Name</th>
+                <th>Email</th>
+                <th>Role</th>
+           </tr>
+        </thead>
+    
+        <tbody>
+            {{range .CompanyUsers}}
+            <tr>
+                <td>{{.Username}}</td>
+                <td>{{.Email}}</td>
+                <td>{{.Role}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+</table>
+
+    <h2>Add User</h2>
+    <form action="/register-handler" method="post">
+        Email: <input type="email" name="email"><br>
+        Username: <input type="text" name="username"><br>
+        Password: <input type="password" name="password"><br>
+        Company: <input type="hidden" name="company" value="{{.CompanyName}}"><br>
+        Role: 
+        <select name="permission">
+            <option value="user">User</option>
+        </select><br><br>
+        <input type="submit" value="Add User">
+    </form>
+
+  <br>
+  <br>
+  
+    <button><a href="/referral-request">Submit New Referral Request</a> </button>
+</body>
+</html>

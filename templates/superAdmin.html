@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Admin Page</title>
+    <link rel="stylesheet" href="../static/style.css">
+</head>
+<body>
+    <h1>Welcome {{.Username}}, Super Admin!</h1>
+    <button><a href="/logout">Logout</a></button>
+    
+    <h2>Create New Company</h2>
+    <form action="/create-company" method="POST">
+        <label for="company-name">Company Name:</label>
+        <input type="text" id="company-name" name="name" required>
+        <button type="submit">Create Company</button>
+    </form>
+
+    <h2>Existing Companies</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Companies}}
+            <tr>
+                <td>{{.ID}}</td>
+                <td>{{.Name}}</td>
+                <td>
+                    <form action="/delete-company" method="POST">
+                        <input type="hidden" name="company_id" value="{{.ID}}">
+                        <button type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <h2>Create New User</h2>
+    <form action="/create-user" method="POST">
+        <label for="user-email">Email:</label>
+        <input type="email" id="user-email" name="email" required><br>
+        <label for="user-username">Username:</label>
+        <input type="text" id="user-username" name="username" required><br>
+        <label for="user-password">Password:</label>
+        <input type="password" id="user-password" name="password" required><br>
+        <label for="user-role">Role:</label>
+        <select id="user-role" name="role" required>
+            <option value="platformAdmin">Platform Admin</option>
+            <option value="companyAdmin">Company Admin</option>
+            <option value="user">Standard User</option>
+        </select><br>
+        <label for="user-company">Company:</label>
+        <select id="user-company" name="company_id" required>
+            {{range .Companies}}
+            <option value="{{.ID}}">{{.Name}}</option>
+            {{end}}
+        </select><br>
+        <button type="submit">Create User</button>
+    </form>
+
+    <h2>Existing Users</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Email</th>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Company</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .AllUsers}}
+            <tr>
+                <td>{{.ID}}</td>
+                <td>{{.Email}}</td>
+                <td>{{.Username}}</td>
+                <td>{{.Role}}</td>
+                <td>{{.CompanyID}}</td>
+                <td>
+                    <form action="/delete-user" method="POST">
+                        <input type="hidden" name="user_id" value="{{.ID}}">
+                        <button type="submit">Delete</button>
+                    </form>
+                </td>
+                <td>
+                    <button class="update-btn" data-user-id="{{.ID}}">Update</button>
+
+                    <div id="update-form-{{.ID}}" class="hidden">
+                        <form action="/update-user" method="POST" class="update-form" data-user-id="{{.ID}}">
+                            <input type="hidden" name="user_id" value="{{.ID}}">
+                            <label>Email:</label>
+                            <input type="email" name="email" value="{{.Email}}" required><br>
+                            <label>Username:</label>
+                            <input type="text" name="username" value="{{.Username}}" required><br>
+                            <label>Password:</label>
+                            <input type="password" name="password" placeholder="Enter new password" required><br>
+                            <label>Role:</label>
+                            <select name="role" required>
+                                <option value="platformAdmin" {{if eq .Role "platformAdmin"}}selected{{end}}>Platform Admin</option>
+                                <option value="companyAdmin" {{if eq .Role "companyAdmin"}}selected{{end}}>Company Admin</option>
+                                <option value="user" {{if eq .Role "user"}}selected{{end}}>Standard User</option>
+                            </select><br>
+                            <button type="submit">Update</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <h2>Referral Requests</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Content</th>
+                <th>Referrer User</th>
+                <th>Client</th>
+                <th>Client Email</th>
+                <th>Created At</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .ReferralRequests}}
+            <tr>
+                <td>{{.ID}}</td>
+                <td>{{.Title}}</td>
+                <td>{{.Content}}</td>
+                <td>{{.Username}}</td>
+                <td>{{.RefereeClient}}</td>
+                <td>{{.RefereeClientEmail}}</td>
+                <td>{{.CreatedAt}}</td>
+                <td>{{.Status}}</td>
+                <td>
+                    <form action="/referral-request-handler" method="post">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <input type="submit" value="Approve" name="action">
+                        <input type="submit" value="Reject" name="action">
+                    </form>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="8">No referral requests found.</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <h1>Create Referral Request</h1>
+    <form action="/submit-referral-request" method="post">
+        Title: <input type="text" name="title"><br>
+        Content: <textarea name="content"></textarea><br>
+        Company: 
+        <select name="company">
+            {{range .Companies}}
+            <option value="{{.ID}}">{{.Name}}</option>
+            {{end}}
+        </select><br>
+        Referee Client: <input type="text" name="referee_client"><br>
+        Referee Client Email: <input type="email" name="referee_client_email"><br>
+        <input type="submit" value="Submit">
+    </form>
+
+    <script>
+        document.querySelectorAll('.update-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const userId = button.getAttribute('data-user-id');
+                const form = document.getElementById('update-form-' + userId);
+                form.classList.remove('hidden');
+                button.classList.add('hidden');
+            });
+        });
+
+        document.querySelectorAll('.update-form').forEach(form => {
+            form.addEventListener('submit', (event) => {
+                const userId = form.getAttribute('data-user-id');
+                const updateButton = document.querySelector('.update-btn[data-user-id="' + userId + '"]');
+                updateButton.classList.remove('hidden');
+                form.classList.add('hidden');
+            });
+        });
+    </script>
+</body>
+</html>
