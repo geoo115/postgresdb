@@ -5,14 +5,13 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -66,87 +65,115 @@ type Activity struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// func createTables() {
-// 	queries := []string{
-// 		`CREATE TABLE IF NOT EXISTS companies (
-// 			id SERIAL PRIMARY KEY,
-// 			name TEXT UNIQUE NOT NULL
-// 		);`,
-// 		`CREATE TABLE IF NOT EXISTS users (
-// 			id SERIAL PRIMARY KEY,
-// 			email TEXT UNIQUE NOT NULL,
-// 			username TEXT NOT NULL,
-// 			password TEXT NOT NULL,
-// 			role TEXT NOT NULL,
-// 			company_id INTEGER,
-// 			FOREIGN KEY (company_id) REFERENCES companies(id)
-// 		);`,
-// 		`CREATE TABLE IF NOT EXISTS roles (
-// 			id SERIAL PRIMARY KEY,
-// 			name TEXT UNIQUE NOT NULL
-// 		);`,
-// 		`CREATE TABLE IF NOT EXISTS user_roles (
-// 			user_id INTEGER NOT NULL,
-// 			role_id INTEGER NOT NULL,
-// 			FOREIGN KEY (user_id) REFERENCES users(id),
-// 			FOREIGN KEY (role_id) REFERENCES roles(id)
-// 		);`,
-// 		`CREATE TABLE IF NOT EXISTS sessions (
-// 			id SERIAL PRIMARY KEY,
-// 			session_id TEXT UNIQUE NOT NULL,
-// 			user_id INTEGER NOT NULL,
-// 			expires_at TIMESTAMP NOT NULL,
-// 			FOREIGN KEY (user_id) REFERENCES users(id)
-// 		);`,
-// 		`CREATE TABLE IF NOT EXISTS referral_requests (
-// 			id SERIAL PRIMARY KEY,
-// 			title TEXT NOT NULL,
-// 			content TEXT NOT NULL,
-// 			referrer_user_id INTEGER NOT NULL,
-// 			company_id INTEGER,
-// 			referee_client TEXT NOT NULL,
-// 			referee_client_email TEXT NOT NULL,
-// 			created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-// 			status TEXT NOT NULL DEFAULT 'pending',
-// 			FOREIGN KEY (referrer_user_id) REFERENCES users(id),
-// 			FOREIGN KEY (company_id) REFERENCES companies(id)
-// 		);`,
-// 	}
-
-// 	for _, query := range queries {
-// 		_, err := db.Exec(query)
-// 		if err != nil {
-// 			log.Fatalf("Error executing query '%s': %v", query, err)
-// 		}
-// 	}
-// }
-
-func init() {
-	// Load environment variables from .env file
-	err := godotenv.Load()
+// Function to create a database if it doesn't exist
+func createDatabaseIfNotExists(dbName string, user string, password string) {
+	connStr := fmt.Sprintf("user=%s password=%s dbname=postgres sslmode=disable", user, password)
+	tempDB, err := sql.Open("postgres", connStr)
 	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+		log.Fatalf("Failed to connect to the PostgreSQL instance: %v", err)
+	}
+	defer tempDB.Close()
+
+	// Check if the database exists
+	var exists bool
+	err = tempDB.QueryRow("SELECT EXISTS(SELECT datname FROM pg_catalog.pg_database WHERE datname = $1)", dbName).Scan(&exists)
+	if err != nil {
+		log.Fatalf("Failed to check if database exists: %v", err)
 	}
 
-	// Database connection setup
-	connStr := "postgres://postgres:mimi123@localhost:5432/database1?sslmode=disable"
-
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatalf("Error connecting to the database: %v", err)
+	if !exists {
+		// Create the database
+		_, err = tempDB.Exec(fmt.Sprintf("CREATE DATABASE %s", dbName))
+		if err != nil {
+			log.Fatalf("Failed to create database: %v", err)
+		}
+		log.Printf("Database %s created successfully", dbName)
+	} else {
+		log.Printf("Database %s already exists", dbName)
 	}
-	defer db.Close()
+}
 
-	err = db.Ping()
-	if err != nil {
-		log.Fatalf("Error pinging the database: %v", err)
+func createTables() {
+	queries := []string{
+		`CREATE TABLE IF NOT EXISTS companies (
+			id SERIAL PRIMARY KEY,
+			name TEXT UNIQUE NOT NULL
+		);`,
+		`CREATE TABLE IF NOT EXISTS users (
+			id SERIAL PRIMARY KEY,
+			email TEXT UNIQUE NOT NULL,
+			username TEXT NOT NULL,
+			password TEXT NOT NULL,
+			role TEXT NOT NULL,
+			company_id INTEGER,
+			FOREIGN KEY (company_id) REFERENCES companies(id)
+		);`,
+		`CREATE TABLE IF NOT EXISTS roles (
+			id SERIAL PRIMARY KEY,
+			name TEXT UNIQUE NOT NULL
+		);`,
+		`CREATE TABLE IF NOT EXISTS user_roles (
+			user_id INTEGER NOT NULL,
+			role_id INTEGER NOT NULL,
+			FOREIGN KEY (user_id) REFERENCES users(id),
+			FOREIGN KEY (role_id) REFERENCES roles(id)
+		);`,
+		`CREATE TABLE IF NOT EXISTS sessions (
+			id SERIAL PRIMARY KEY,
+			session_id TEXT UNIQUE NOT NULL,
+			user_id INTEGER NOT NULL,
+			expires_at TIMESTAMP NOT NULL,
+			FOREIGN KEY (user_id) REFERENCES users(id)
+		);`,
+		`CREATE TABLE IF NOT EXISTS referral_requests (
+			id SERIAL PRIMARY KEY,
+			title TEXT NOT NULL,
+			content TEXT NOT NULL,
+			referrer_user_id INTEGER NOT NULL,
+			company_id INTEGER,
+			referee_client TEXT NOT NULL,
+			referee_client_email TEXT NOT NULL,
+			created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+			status TEXT NOT NULL DEFAULT 'pending',
+			FOREIGN KEY (referrer_user_id) REFERENCES users(id),
+			FOREIGN KEY (company_id) REFERENCES companies(id)
+		);`,
 	}
 
-	// Ensure tables are created
-	// createTables()
+	for _, query := range queries {
+		_, err := db.Exec(query)
+		if err != nil {
+			log.Fatalf("Error executing query:\n%s\nError: %v", query, err)
+		}
+	}
 }
 
 func main() {
+	user := "postgres"
+	password := "mimi123"
+	dbName := "databasetest"
+
+	// Create the database if it does not exist
+	createDatabaseIfNotExists(dbName, user, password)
+
+	// Connect to the newly created database
+	connStr := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", user, password, dbName)
+	var err error
+	db, err = sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatalf("Failed to connect to the database: %v", err)
+	}
+	defer db.Close()
+
+	// Verify the connection
+	err = db.Ping()
+	if err != nil {
+		log.Fatalf("Failed to ping the database: %v", err)
+	}
+
+	createTables()
+	log.Println("Tables created successfully")
+
 	r := mux.NewRouter()
 
 	r.HandleFunc("/register", RegisterHandler).Methods("POST")
@@ -539,21 +566,6 @@ func DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-}
-
-func init() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("Error loading .env file:", err)
-	}
-	db, err = sql.Open("postgres", os.Getenv("DATABASE_URL"))
-	if err != nil {
-		log.Fatal("Error opening database connection:", err)
-	}
-	err = db.Ping()
-	if err != nil {
-		log.Fatal("Error connecting to database:", err)
-	}
 }
 
 func CreateSession(userID int) string {
