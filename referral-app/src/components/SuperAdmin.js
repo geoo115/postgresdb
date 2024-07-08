@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { fetchSuperAdmin} from '../api';
+import { fetchSuperAdmin } from '../api';
 import CreateCompanyForm from './CreateCompanyForm';
 import CompanyList from './CompanyList';
 import CreateUserForm from './CreateUserForm';
 import UserList from './UserList';
 import LogoutButton from './LogoutButton';
-import ReferralRequest from './ReferralRequest';
+import ReferralRequestForm from './ReferralRequestForm';
 import ViewReferrals from './ViewReferrals';
 
 const SuperAdmin = () => {
@@ -40,18 +40,11 @@ const SuperAdmin = () => {
     <div>
       <h1>Welcome Super Admin!</h1>
       <LogoutButton />
-
       <CreateCompanyForm refreshData={refreshData} />
       <CompanyList companies={companies} refreshData={refreshData} />
-
-      <CreateUserForm
-        companies={companies}
-        refreshData={refreshData}
-        userRole="superAdmin" // Specify user role for SuperAdmin
-      />
+      <CreateUserForm companies={companies} refreshData={refreshData} userRole="superAdmin" />
       <UserList users={users} companies={companies} refreshData={refreshData} />
-
-      <ReferralRequest />
+      <ReferralRequestForm />
       <ViewReferrals />
     </div>
   );

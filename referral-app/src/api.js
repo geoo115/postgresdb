@@ -10,44 +10,50 @@ const api = axios.create({
   },
 });
 
-
-
-// Add a request interceptor to include the token in the headers
+// Request interceptor to add Authorization header
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token'); // Retrieve the token from localStorage
+    const token = localStorage.getItem('token');
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`; // Include the token in the Authorization header
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
-    console.log('Request Config:', config); // Log the request configuration
     return config;
   },
   (error) => {
-    console.error('Request Error:', error); // Log any request errors
+    console.error('Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-// Add a response interceptor to log responses and errors
+// Response interceptor to log responses and handle errors
 api.interceptors.response.use(
   (response) => {
-    console.log('Response:', response); // Log the response
+    console.log('Response:', response);
     return response;
   },
   (error) => {
-    console.error('Response Error:', error.response); // Log any response errors
+    console.error('Response Error:', error.response);
     return Promise.reject(error);
   }
 );
 
+// API functions for various endpoints
 export const registerUser = (userData) => api.post('/register', userData);
 export const loginUser = (credentials) => api.post('/login', credentials);
-export const createReferralRequest = (request) => {
-  console.log('Creating referral request with data:', request);
-  return api.post('/create-referral', request);
+export const createReferralRequest = async (formData) => {
+  try {
+    const response = await api.post('/create-referral', formData);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
 };
 export const fetchReferralRequests = () => api.get('/referral-request');
 export const submitReferralRequest = (request) => api.post('/submit-referral-request', request);
+export const approveReferralRequest = (referralRequestID) => api.post(`/referral-request-action/approve/${referralRequestID}`);
+export const denyReferralRequest = (referralRequestID) => api.post(`/referral-request-action/deny/${referralRequestID}`);
+export const fetchReferralRequestByID = (referralRequestID) => api.get(`/referral-request/${referralRequestID}`);
+export const fetchReferralRequestsByReferrer = (referrerUserID) => api.get(`/referral-requests/referrer/${referrerUserID}`);
 export const logoutUser = () => api.post('/logout');
 export const fetchUserProfile = () => api.get('/user-profile');
 export const fetchAdminProfile = () => api.get('/admin-profile');

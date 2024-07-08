@@ -1,4 +1,3 @@
-// UserList.js
 import React, { useState } from 'react';
 import { updateUser, deleteUser } from '../api';
 
@@ -89,6 +88,7 @@ const UserList = ({ users, refreshData }) => {
                         required
                       />
                       <br />
+                      {/* Enhance security: add password reset with proper security */}
                       <label htmlFor={`password-${user.id}`}>Password:</label>
                       <input
                         type="password"

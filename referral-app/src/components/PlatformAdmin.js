@@ -3,7 +3,7 @@ import { fetchPlatformAdmin } from '../api';
 import CreateUserForm from './CreateUserForm';
 import UserList from './UserList';
 import LogoutButton from './LogoutButton';
-import ReferralRequest from './ReferralRequest';
+
 import ViewReferrals from './ViewReferrals';
 import CompanyList from './CompanyList';
 
@@ -46,7 +46,7 @@ const PlatformAdmin = () => {
         userRole="platformAdmin"
       />
       <UserList users={users} refreshData={refreshData} />
-      <ReferralRequest />
+      
       <ViewReferrals />
       {/* Optional: Display list of companies as a sanity check */}
       <ul>

@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { createReferralRequest, fetchSuperAdmin } from '../api'; // Assuming fetchSuperAdmin retrieves companies
+import { createReferralRequest, fetchSuperAdmin } from '../api';
 
-const ReferralRequest = () => {
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
+const ReferralRequestForm = () => {
+  const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    company_name: '',
+    referee_client: '',
+    referee_client_email: ''
+  });
+
   const [companies, setCompanies] = useState([]);
-  const [selectedCompany, setSelectedCompany] = useState('');
-  const [refereeClient, setRefereeClient] = useState('');
-  const [refereeClientEmail, setRefereeClientEmail] = useState('');
 
   useEffect(() => {
     const fetchCompanies = async () => {
       try {
-        const response = await fetchSuperAdmin(); // Adjust this based on your API structure
+        const response = await fetchSuperAdmin();
         setCompanies(response.data.companies || []);
       } catch (error) {
         console.error('Error fetching companies:', error);
@@ -22,25 +25,31 @@ const ReferralRequest = () => {
     fetchCompanies();
   }, []);
 
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await createReferralRequest({
-        title,
-        content,
-        company_id: selectedCompany,
-        referee_client: refereeClient,
-        referee_client_email: refereeClientEmail
+      await createReferralRequest(formData);
+      alert('Referral request created successfully');
+      setFormData({
+        title: '',
+        content: '',
+        company_name: '',
+        referee_client: '',
+        referee_client_email: ''
       });
-      // Clear form fields after submission
-      setTitle('');
-      setContent('');
-      setSelectedCompany('');
-      setRefereeClient('');
-      setRefereeClientEmail('');
-      // Optionally, refresh the list of referral requests or perform any other updates
     } catch (error) {
       console.error('Error creating referral request:', error);
+      if (error.response) {
+        console.error('Server Response Data:', error.response.data);
+      }
+      alert('Referral request creation failed');
     }
   };
 
@@ -53,8 +62,8 @@ const ReferralRequest = () => {
           type="text"
           id="title"
           name="title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          value={formData.title}
+          onChange={handleChange}
           required
         /><br />
 
@@ -62,17 +71,17 @@ const ReferralRequest = () => {
         <textarea
           id="content"
           name="content"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
+          value={formData.content}
+          onChange={handleChange}
           required
         /><br />
 
         <label htmlFor="company">Company:</label>
         <select
           id="company"
-          name="company"
-          value={selectedCompany}
-          onChange={(e) => setSelectedCompany(e.target.value)}
+          name="company_name"
+          value={formData.company_id}
+          onChange={handleChange}
           required
         >
           <option value="">Select a company</option>
@@ -86,8 +95,8 @@ const ReferralRequest = () => {
           type="text"
           id="refereeClient"
           name="referee_client"
-          value={refereeClient}
-          onChange={(e) => setRefereeClient(e.target.value)}
+          value={formData.referee_client}
+          onChange={handleChange}
           required
         /><br />
 
@@ -96,8 +105,8 @@ const ReferralRequest = () => {
           type="email"
           id="refereeClientEmail"
           name="referee_client_email"
-          value={refereeClientEmail}
-          onChange={(e) => setRefereeClientEmail(e.target.value)}
+          value={formData.referee_client_email}
+          onChange={handleChange}
           required
         /><br />
 
@@ -107,4 +116,4 @@ const ReferralRequest = () => {
   );
 };
 
-export default ReferralRequest;
+export default ReferralRequestForm;
