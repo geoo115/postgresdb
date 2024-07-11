@@ -37,8 +37,23 @@ api.interceptors.response.use(
   }
 );
 
-// API functions for various endpoints
-export const registerUser = (userData) => api.post('/register', userData);
+export const registerUser = async (userData) => {
+  try {
+    const response = await axios.post('http://localhost:8000/register', userData, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 5000,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error registering user:', error);
+    if (error.response) {
+      throw new Error(error.response.data);
+    } else {
+      throw new Error('Registration failed. Please try again.');
+    }
+  }
+};
+
 export const loginUser = (credentials) => api.post('/login', credentials);
 export const createReferralRequest = async (formData) => {
   try {
@@ -59,7 +74,22 @@ export const fetchUserProfile = () => api.get('/user-profile');
 export const fetchAdminProfile = () => api.get('/admin-profile');
 export const fetchPlatformAdmin = () => api.get('/platform-admin');
 export const fetchSuperAdmin = () => api.get('/super-admin');
-export const createCompany = (companyData) => api.post('/create-company', companyData);
+export const createCompany = async (companyData) => {
+  try {
+    const response = await axios.post('http://localhost:8000/create-company', companyData, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 5000,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error creating company:', error);
+    if (error.response) {
+      throw new Error(error.response.data);
+    } else {
+      throw new Error('Company creation failed. Please try again.');
+    }
+  }
+};
 export const deleteCompany = (companyID) => api.post('/delete-company', { company_id: companyID });
 export const createUser = (userData) => api.post('/create-user', userData);
 export const updateUser = async (userId, userData) => {

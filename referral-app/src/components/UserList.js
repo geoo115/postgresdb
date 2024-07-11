@@ -4,6 +4,8 @@ import { updateUser, deleteUser } from '../api';
 const UserList = ({ users, refreshData }) => {
   const [updateUserData, setUpdateUserData] = useState({});
 
+  console.log(users); // Add this line to inspect the users array
+
   const handleDeleteUser = async (userId) => {
     try {
       await deleteUser(userId);
@@ -40,6 +42,7 @@ const UserList = ({ users, refreshData }) => {
               <th>Username</th>
               <th>Role</th>
               <th>Company ID</th>
+              <th>Company Name</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -51,6 +54,7 @@ const UserList = ({ users, refreshData }) => {
                 <td>{user.username}</td>
                 <td>{user.role}</td>
                 <td>{user.company_id}</td>
+                <td>{user.company_name}</td>
                 <td>
                   <button onClick={() => handleDeleteUser(user.id)}>Delete</button>
                   <button onClick={() => setUpdateUserData((prev) => ({ ...prev, [user.id]: user }))}>
@@ -95,6 +99,12 @@ const UserList = ({ users, refreshData }) => {
                         id={`password-${user.id}`}
                         name="password"
                         placeholder="Enter new password"
+                        onChange={(e) =>
+                          setUpdateUserData((prev) => ({
+                            ...prev,
+                            [user.id]: { ...prev[user.id], password: e.target.value },
+                          }))
+                        }
                         required
                       />
                       <br />
@@ -125,6 +135,20 @@ const UserList = ({ users, refreshData }) => {
                           setUpdateUserData((prev) => ({
                             ...prev,
                             [user.id]: { ...prev[user.id], company_id: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                      <br />
+                      <label htmlFor={`company-name-${user.id}`}>Company Name:</label>
+                      <input
+                        id={`company-name-${user.id}`}
+                        name="company_name"
+                        value={updateUserData[user.id].company_name}
+                        onChange={(e) =>
+                          setUpdateUserData((prev) => ({
+                            ...prev,
+                            [user.id]: { ...prev[user.id], company_name: e.target.value },
                           }))
                         }
                         required

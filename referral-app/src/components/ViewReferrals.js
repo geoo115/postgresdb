@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const ViewReferrals = () => {
+const ViewReferrals = ({ userRole, userCompanyID }) => { // Assuming userCompanyID is passed as a prop
   const [referralRequests, setReferralRequests] = useState(null);
 
   useEffect(() => {
     const fetchReferralRequests = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/referral-request', {
+        let endpoint = 'http://localhost:8000/referral-request';
+        if (userRole === 'companyAdmin' || userRole === 'user') {
+          // Append company ID to fetch only company-specific referrals
+          endpoint += `?companyID=${userCompanyID}`;
+        }
+
+        const response = await axios.get(endpoint, {
           headers: {
             Authorization: `Bearer YOUR_AUTH_TOKEN`
           }
@@ -19,22 +25,20 @@ const ViewReferrals = () => {
     };
 
     fetchReferralRequests();
-  }, []);
+  }, [userRole, userCompanyID]); // Ensure userRole and userCompanyID are in the dependency array if they can change
 
   const handleAction = async (referralRequestID, action) => {
     try {
-      const response = await axios.post(`http://localhost:8000/referral-request-action/${action}/${referralRequestID}`, {}, {
+      await axios.post(`http://localhost:8000/referral-request-action/${action}/${referralRequestID}`, {}, {
         headers: {
           Authorization: `Bearer YOUR_AUTH_TOKEN`
         }
       });
       alert(`Referral request ${action}ed successfully`);
-      // Refresh the referral requests list
-      setReferralRequests((prevRequests) => 
-        prevRequests.map(request => 
-          request.id === referralRequestID ? { ...request, status: action === 'approve' ? 'Approved' : 'Denied' } : request
-        )
-      );
+      // Refresh the referral requests list with updated status
+      setReferralRequests(prevRequests => prevRequests.map(request =>
+        request.id === referralRequestID ? { ...request, status: action === 'approve' ? 'Approved' : 'Denied' } : request
+      ));
     } catch (error) {
       console.error(`Error ${action}ing referral request:`, error);
       alert(`Failed to ${action} referral request`);
@@ -58,12 +62,13 @@ const ViewReferrals = () => {
               <th>Referee Client Email</th>
               <th>Created At</th>
               <th>Status</th>
+              <th>Company ID</th>
               <th>Company Name</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {referralRequests.map((request) => (
+            {referralRequests.map(request => (
               <tr key={request.id}>
                 <td>{request.id}</td>
                 <td>{request.title}</td>
@@ -73,6 +78,7 @@ const ViewReferrals = () => {
                 <td>{request.referee_client_email}</td>
                 <td>{new Date(request.created_at).toLocaleString()}</td>
                 <td>{request.status}</td>
+                <td>{request.company_id}</td>
                 <td>{request.company_name}</td>
                 <td>
                   <button onClick={() => handleAction(request.id, 'approve')}>Accept</button>
