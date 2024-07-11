@@ -1,0 +1,90 @@
+.nav-container {
+  display: flex; /* Add this line */
+  flex-direction: column; /* Optional, depending on your layout needs */
+  justify-content: center; /* Center horizontally */
+  align-items: center; /* Center vertically */
+  padding-top: 7rem;
+  background-color: white;
+  height: 100vh; /* Add this line */
+}
+
+.nav-container h2 {
+  font-size: 2rem;
+  color: #1c8366;
+  text-transform: uppercase;
+}
+
+.grid-container {
+  display: grid;
+  grid-template-columns: auto auto auto auto;
+  padding: 10px;
+  width: 60rem;
+  height: 60rem;
+  background-color: white;
+  padding-right: 10rem;
+}
+
+.grid-item {
+  padding: 20px;
+  font-size: 30px;
+  text-align: center;
+  width: 15rem;
+  height: 15rem;
+  font-size: 1rem;
+  color: white;
+  background-color: #333;
+  position: relative; /* Make sure .grid-item is positioned relative */
+}
+
+/* #orange .arrow-down {
+  border-top: 20px solid red;
+}
+
+#green .arrow-down {
+  border-top: 20px solid blue;
+} */
+
+.grid-item a {
+  color: white;
+  font-size: 0.8rem;
+  text-decoration-line: underline;
+  font-weight: 650;
+  position: relative; /* Ensure grid-item is positioned relatively */
+  overflow: hidden; /* Hide any overflow from the image */
+  z-index: 10;
+}
+
+.grid-item p {
+  font-size: 0.8rem;
+  z-index: 10;
+}
+
+.grid-item img {
+  position: absolute; /* Position the image absolutely within the grid-item */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Ensure the image covers the entire area without distortion */
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  z-index: 5;
+}
+
+.grid-item:hover img {
+  opacity: 20%;
+}
+
+.grid-item h3 {
+  text-transform: uppercase;
+  font-size: 1.1rem;
+  z-index: 10;
+}
+
+#orange {
+  background-color: #e0991b;
+}
+
+#green {
+  background-color: #1c8366;
+}

@@ -7,6 +7,8 @@ import UserList from './UserList';
 import LogoutButton from './LogoutButton';
 import ReferralRequestForm from './ReferralRequestForm';
 import ViewReferrals from './ViewReferrals';
+import ReferralsSent from './ReferralsSent';
+import ReferralsReceived from './ReferralsReceived';
 
 const SuperAdmin = () => {
   const [companies, setCompanies] = useState([]);
@@ -37,7 +39,7 @@ const SuperAdmin = () => {
   };
 
   return (
-    <div>
+    <>
       <h1>Welcome Super Admin!</h1>
       <LogoutButton />
       <CreateCompanyForm refreshData={refreshData} />
@@ -46,7 +48,9 @@ const SuperAdmin = () => {
       <UserList users={users} companies={companies} refreshData={refreshData} />
       <ReferralRequestForm />
       <ViewReferrals />
-    </div>
+        <ReferralsSent />
+        <ReferralsReceived />
+    </>
   );
 };
 

@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 import { loginUser } from '../api';
+import user_icon from "../assets/person.png";
+import password_icon from "../assets/password.png";
+import '../styles/Login.css';
+
 
 const Login = () => {
   const [credentials, setCredentials] = useState({
@@ -52,12 +56,35 @@ const Login = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <input name="email" placeholder="Email" value={credentials.email} onChange={handleChange} />
-      <input type="password" name="password" placeholder="Password" value={credentials.password} onChange={handleChange} />
-      <button type="submit">Login</button>
-    </form>
+    <div className="container">
+      <div className="header">
+        <div className="text">Login</div>
+        <div className="underline"></div>
+      </div>
+      <form onSubmit={handleSubmit}>
+        <div className="inputs">
+          <div className="input">
+            <img src={user_icon} alt="user" />
+            <input name="email" placeholder="Email" value={credentials.email} onChange={handleChange} />
+          </div>
+          <div className="input">
+            <img src={password_icon} alt="pswd" />
+            <input type="password" name="password" placeholder="Password" value={credentials.password} onChange={handleChange} />
+
+          </div>
+        </div>
+        <div className="forgot-password">
+          Forgot Password? <span>Click here</span>
+        </div>
+
+        <div className="submit-container">
+          <button className="submit" type="submit">
+            Login
+          </button>
+        </div>
+      </form>
+      
+    </div>
   );
 };
-
 export default Login;

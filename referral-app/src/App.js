@@ -8,6 +8,7 @@ import PlatformAdmin from './components/PlatformAdmin';
 import SuperAdmin from './components/SuperAdmin';
 import CreateReferral from './components/CreateReferral';
 import ViewReferrals from './components/ViewReferrals';
+import './App.css';
 
 const App = () => {
   return (
