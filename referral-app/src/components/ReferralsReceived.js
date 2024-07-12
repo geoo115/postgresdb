@@ -9,10 +9,11 @@ const ReferralsReceived = () => {
     const fetchReferralsReceived = async () => {
       try {
         const response = await axios.get('http://localhost:8000/referrals-received');
-        setReferralRequests(response.data);
+        setReferralRequests(response.data || []); // Ensure data is an array
         setLoading(false);
       } catch (error) {
         console.error('Error fetching referrals received:', error);
+        setReferralRequests([]); // Default to an empty array on error
         setLoading(false);
       }
     };

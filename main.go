@@ -782,6 +782,7 @@ func GetReferralsSentHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
 	var user User
 	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id FROM users u "+
 		"INNER JOIN sessions s ON u.id = s.user_id "+
@@ -791,6 +792,7 @@ func GetReferralsSentHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
 	var referralRequests []ReferralRequest
 	rows, err := db.Query("SELECT r.id, r.title, r.content, r.username, r.referrer_user_id, r.company_id, r.referee_client, r.referee_client_email, r.created_at, r.status, c.name AS company_name "+
 		"FROM referral_requests r "+
@@ -803,6 +805,7 @@ func GetReferralsSentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
+
 	for rows.Next() {
 		var referralRequest ReferralRequest
 		err := rows.Scan(&referralRequest.ID, &referralRequest.Title, &referralRequest.Content, &referralRequest.Username,
@@ -815,10 +818,16 @@ func GetReferralsSentHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		referralRequests = append(referralRequests, referralRequest)
 	}
+
 	if err := rows.Err(); err != nil {
 		log.Println("Error iterating over referral request rows:", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if len(referralRequests) == 0 {
+		referralRequests = []ReferralRequest{} // Ensure an empty slice is returned if no records found
 	}
 	json.NewEncoder(w).Encode(referralRequests)
 }
@@ -829,6 +838,7 @@ func GetReferralsReceivedHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
 	var user User
 	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id FROM users u "+
 		"INNER JOIN sessions s ON u.id = s.user_id "+
@@ -838,6 +848,7 @@ func GetReferralsReceivedHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
 	var referralRequests []ReferralRequest
 	rows, err := db.Query("SELECT r.id, r.title, r.content, r.username, r.referrer_user_id, r.company_id, r.referee_client, r.referee_client_email, r.created_at, r.status, c.name AS company_name "+
 		"FROM referral_requests r "+
@@ -850,6 +861,7 @@ func GetReferralsReceivedHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
+
 	for rows.Next() {
 		var referralRequest ReferralRequest
 		err := rows.Scan(&referralRequest.ID, &referralRequest.Title, &referralRequest.Content, &referralRequest.Username,
@@ -862,10 +874,16 @@ func GetReferralsReceivedHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		referralRequests = append(referralRequests, referralRequest)
 	}
+
 	if err := rows.Err(); err != nil {
 		log.Println("Error iterating over referral request rows:", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if len(referralRequests) == 0 {
+		referralRequests = []ReferralRequest{} // Ensure an empty slice is returned if no records found
 	}
 	json.NewEncoder(w).Encode(referralRequests)
 }
