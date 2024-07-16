@@ -21,6 +21,7 @@ const Login = () => {
             const response = await axios.post('http://localhost:8080/login', credentials, { withCredentials: true });
             if (response.status === 200) {
                 alert('Login successful');
+                window.location.href = "/referrals";
                 console.log(response.data); // Handle the user data received from the response
             }
         } catch (error) {
