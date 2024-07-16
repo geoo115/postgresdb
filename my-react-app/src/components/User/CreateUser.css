@@ -1,0 +1,147 @@
+.user-underline {
+  width: 60px;
+  height: 6px;
+  background: #1c8366;
+  border-radius: 9px;
+  margin: 0 auto 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.user-title {
+  color: #1c8366;
+  font-size: 2rem;
+}
+
+.table-user-title {
+  color: #1c8366;
+  font-size: 2rem;
+}
+.create-user {
+  margin-top: 7rem;
+  padding: 0.3rem 1rem;
+  /* margin-left: 20%; */
+  width: 15rem;
+  border-radius: 6px;
+  background-color: white;
+}
+
+.user-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-top: 3rem;
+  padding-bottom: 10rem;
+  box-sizing: border-box;
+}
+
+.user-input input[type="text"],
+.user-input input[type="password"],
+.user-dropdown select,
+.company-dropdown select {
+  width: 13rem;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  position: relative;
+  font-family: inherit;
+}
+
+.user-submit-container {
+  justify-content: center;
+  display: flex;
+  gap: 2rem;
+  margin: 1rem auto;
+}
+
+.user-submit {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 10rem;
+  height: 3rem;
+  color: #fafafa;
+  background: #1c8366;
+  border-radius: 50px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.user-submit:hover {
+  background-color: #e0991b;
+}
+
+/* TABLE */
+
+.user-table {
+  border-collapse: collapse; /* Ensures that the borders are not double */
+  width: 45rem;
+  margin: 1rem;
+  background: rgb(255, 249, 232);
+}
+
+.user-head {
+  background-color: #dad2d2; /* Adds a background color for header cells */
+  border-bottom: 2px solid #1c8366; /* Ensures header row stands out */
+  font-weight: bold; /* Makes header text bold */
+  text-align: center;
+  padding: 8px; /* Adds padding for better readability */
+}
+
+.user-row {
+  border-bottom: 1px solid #1c8366; /* Add border bottom for rows */
+}
+td {
+  border-right: 1px solid #ccc; /* Add vertical lines */
+}
+.user-data {
+  border: 1px solid #1c8366;
+  text-align: center;
+  padding: 8px; /* Adds padding for better readability */
+}
+
+tr:hover {
+  background-color: #f1f1f1; /* Adds a hover effect for rows */
+}
+
+.delete-btn {
+  background-color: #e0991b;
+  border-radius: 50px;
+  padding: 5px 10px;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  align-items: center;
+  height: 2rem;
+}
+
+.delete-btn:hover {
+  background-color: #c44b4b;
+}
+
+.table-container {
+  margin-top: 7rem;
+  background-color: white;
+  margin-left: 1rem;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  border-radius: 6px;
+}
+
+.user-head {
+  background-color: #dad2d2;
+  text-align: center;
+  padding: 8px;
+}
+
+.user-head th {
+  border: none;
+}
+
+.user-row {
+  height: 2.5rem;
+  border-bottom: 1px solid #ccc;
+}
