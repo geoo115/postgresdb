@@ -49,7 +49,7 @@ type ReferralRequest struct {
 func main() {
 	user := "postgres"
 	password := "mimi123"
-	dbName := "databasetest"
+	dbName := "databasetest2"
 
 	createDatabaseIfNotExists(dbName, user, password)
 	connStr := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", user, password, dbName)
@@ -84,8 +84,9 @@ func main() {
 	r.HandleFunc("/users/{companyID}", GetUsersByCompanyHandler).Methods("GET")
 	r.HandleFunc("/create-user", CreateUserHandler).Methods("POST")
 	r.HandleFunc("/delete-user", DeleteUserHandler).Methods("POST")
-	r.HandleFunc("/create-company", (CreateCompanyHandler)).Methods("POST")
-	r.HandleFunc("/delete-company", (DeleteCompanyHandler)).Methods("POST")
+	r.HandleFunc("/create-company", CreateCompanyHandler).Methods("POST")
+	r.HandleFunc("/delete-company", DeleteCompanyHandler).Methods("POST")
+
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:5173"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -190,16 +191,20 @@ func generateSessionID() string {
 
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	var user User
+
+	// Decode JSON request body into User struct
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if user.CompanyName == "" {
-		http.Error(w, "Company name is required", http.StatusBadRequest)
+	// Validate required fields
+	if user.Email == "" || user.Username == "" || user.Password == "" || user.CompanyName == "" || user.Role == "" {
+		http.Error(w, "All fields are required", http.StatusBadRequest)
 		return
 	}
 
+	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Println("Error hashing password:", err)
@@ -207,8 +212,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Registering user: %s with company: %s", user.Username, user.CompanyName)
-
+	// Check if company exists or create a new one
 	var companyID int
 	err = db.QueryRow("SELECT id FROM companies WHERE name = $1", user.CompanyName).Scan(&companyID)
 	switch {
@@ -231,7 +235,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Existing company found with ID: %d", companyID)
 	}
 
-	// Now insert the user using the obtained companyID
+	// Insert the user with hashed password and company ID
 	log.Printf("Inserting user %s into company with ID %d", user.Username, companyID)
 	_, err = db.Exec("INSERT INTO users (email, username, password, role, company_id) VALUES ($1, $2, $3, $4, $5)",
 		user.Email, user.Username, hashedPassword, user.Role, companyID)
@@ -304,6 +308,21 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetCompaniesHandler(w http.ResponseWriter, r *http.Request) {
+	var userCount int
+	err := db.QueryRow("SELECT COUNT(*) FROM users").Scan(&userCount)
+	if err != nil {
+		log.Println("Error counting users:", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// If no users exist, allow public access to companies
+	if userCount == 0 {
+		fetchCompanies(w)
+		return
+	}
+
+	// Proceed with session authentication if users exist
 	sessionID, err := r.Cookie("session_id")
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -320,6 +339,10 @@ func GetCompaniesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fetchCompanies(w)
+}
+
+func fetchCompanies(w http.ResponseWriter) {
 	var companies []Company
 	rows, err := db.Query("SELECT id, name FROM companies")
 	if err != nil {
@@ -956,7 +979,6 @@ func DeleteCompanyHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	log.Println("Company deleted successfully:", request.CompanyID)
 }
-
 
 // func UserProfileHandler(w http.ResponseWriter, r *http.Request) {
 // 	sessionCookie, err := r.Cookie("session_id")
