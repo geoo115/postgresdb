@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -28,10 +29,12 @@ type User struct {
 	CompanyID   int    `json:"company_id"`
 	CompanyName string `json:"company_name"`
 }
+
 type Company struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
 }
+
 type ReferralRequest struct {
 	ID                 int       `json:"id"`
 	Title              string    `json:"title"`
@@ -49,7 +52,7 @@ type ReferralRequest struct {
 func main() {
 	user := "postgres"
 	password := "mimi123"
-	dbName := "databasetest2"
+	dbName := "databasetest3"
 
 	createDatabaseIfNotExists(dbName, user, password)
 	connStr := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", user, password, dbName)
@@ -95,7 +98,7 @@ func main() {
 	})
 
 	handler := c.Handler(r)
-	http.ListenAndServe(":8080", handler)
+	log.Fatal(http.ListenAndServe(":8080", handler))
 }
 
 // Function to create a database if it doesn't exist
@@ -204,6 +207,12 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate email format
+	if !isValidEmail(user.Email) {
+		http.Error(w, "Invalid email format", http.StatusBadRequest)
+		return
+	}
+
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -258,6 +267,13 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Validate email format
+	if !isValidEmail(credentials.Email) {
+		http.Error(w, "Invalid email format", http.StatusBadRequest)
+		return
+	}
+
 	var user User
 	err := db.QueryRow("SELECT id, email, username, password, role, company_id FROM users WHERE email = $1", credentials.Email).
 		Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID)
@@ -279,9 +295,10 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:    "session_id",
-		Value:   sessionID,
-		Expires: time.Now().Add(24 * time.Hour),
+		Name:     "session_id",
+		Value:    sessionID,
+		Expires:  time.Now().Add(24 * time.Hour),
+		HttpOnly: true, // Secure session cookies
 	})
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(user)
@@ -300,9 +317,10 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:   "session_id",
-		Value:  "",
-		MaxAge: -1,
+		Name:     "session_id",
+		Value:    "",
+		MaxAge:   -1,
+		HttpOnly: true, // Secure session cookies
 	})
 	w.WriteHeader(http.StatusOK)
 }
@@ -401,6 +419,13 @@ func CreateReferralRequestHandler(w http.ResponseWriter, r *http.Request) {
 	referralRequest.ReferrerUserID = user.ID
 	referralRequest.CompanyID = user.CompanyID
 	referralRequest.CompanyName = user.CompanyName
+
+	// Validate referral request fields
+	if referralRequest.Title == "" || referralRequest.Content == "" || referralRequest.RefereeClient == "" || !isValidEmail(referralRequest.RefereeClientEmail) {
+		http.Error(w, "Invalid input fields", http.StatusBadRequest)
+		return
+	}
+
 	_, err = db.Exec("INSERT INTO referral_requests (username, title, content, referrer_user_id, company_id, referee_client, referee_client_email) "+
 		"VALUES ($1, $2, $3, $4, $5, $6, $7)",
 		referralRequest.Username, referralRequest.Title, referralRequest.Content, referralRequest.ReferrerUserID,
@@ -413,170 +438,76 @@ func CreateReferralRequestHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-// func GetReferralRequestsByCompanyIDHandler(w http.ResponseWriter, r *http.Request) {
-// 	sessionID, err := r.Cookie("session_id")
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	var user User
-// 	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id FROM users u "+
-// 		"INNER JOIN sessions s ON u.id = s.user_id "+
-// 		"WHERE s.session_id = $1", sessionID.Value).
-// 		Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID)
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	vars := mux.Vars(r)
-// 	companyID, err := strconv.Atoi(vars["companyID"])
-// 	if err != nil {
-// 		http.Error(w, "Invalid company ID", http.StatusBadRequest)
-// 		return
-// 	}
-// 	var referralRequests []ReferralRequest
-// 	rows, err := db.Query("SELECT r.id, r.title, r.content, r.username, r.referrer_user_id, r.company_id, r.referee_client, r.referee_client_email, r.created_at, r.status, c.name AS company_name "+
-// 		"FROM referral_requests r "+
-// 		"LEFT JOIN companies c ON r.company_id = c.id "+
-// 		"WHERE r.company_id = $1 "+
-// 		"ORDER BY r.created_at DESC", companyID)
-// 	if err != nil {
-// 		log.Println("Error fetching referral requests:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	defer rows.Close()
-// 	for rows.Next() {
-// 		var referralRequest ReferralRequest
-// 		err := rows.Scan(&referralRequest.ID, &referralRequest.Title, &referralRequest.Content, &referralRequest.Username,
-// 			&referralRequest.ReferrerUserID, &referralRequest.CompanyID, &referralRequest.RefereeClient, &referralRequest.RefereeClientEmail,
-// 			&referralRequest.CreatedAt, &referralRequest.Status, &referralRequest.CompanyName)
-// 		if err != nil {
-// 			log.Println("Error scanning referral request row:", err)
-// 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 			return
-// 		}
-// 		referralRequests = append(referralRequests, referralRequest)
-// 	}
-// 	if err := rows.Err(); err != nil {
-// 		log.Println("Error iterating over referral request rows:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	json.NewEncoder(w).Encode(referralRequests)
-// }
+// Helper function to validate email format
+func isValidEmail(email string) bool {
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return false
+	}
+	domainParts := strings.Split(parts[1], ".")
+	if len(domainParts) < 2 {
+		return false
+	}
+	return true
+}
 
-// func GetReferralRequestByIDHandler(w http.ResponseWriter, r *http.Request) {
-// 	sessionID, err := r.Cookie("session_id")
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	var user User
-// 	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id FROM users u "+
-// 		"INNER JOIN sessions s ON u.id = s.user_id "+
-// 		"WHERE s.session_id = $1", sessionID.Value).
-// 		Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID)
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	vars := mux.Vars(r)
-// 	referralRequestID, err := strconv.Atoi(vars["referralRequestID"])
-// 	if err != nil {
-// 		http.Error(w, "Invalid referral request ID", http.StatusBadRequest)
-// 		return
-// 	}
-// 	var referralRequest ReferralRequest
-// 	err = db.QueryRow("SELECT r.id, r.title, r.content, r.username, r.referrer_user_id, r.company_id, r.referee_client, r.referee_client_email, r.created_at, r.status, c.name AS company_name "+
-// 		"FROM referral_requests r "+
-// 		"LEFT JOIN companies c ON r.company_id = c.id "+
-// 		"WHERE r.id = $1", referralRequestID).
-// 		Scan(&referralRequest.ID, &referralRequest.Title, &referralRequest.Content, &referralRequest.Username,
-// 			&referralRequest.ReferrerUserID, &referralRequest.CompanyID, &referralRequest.RefereeClient, &referralRequest.RefereeClientEmail,
-// 			&referralRequest.CreatedAt, &referralRequest.Status, &referralRequest.CompanyName)
-// 	if err != nil {
-// 		log.Println("Error fetching referral request:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	json.NewEncoder(w).Encode(referralRequest)
-// }
+func handleError(w http.ResponseWriter, msg string, code int) {
+	http.Error(w, msg, code)
+	log.Println(msg)
+}
 
 func ApproveReferralRequestHandler(w http.ResponseWriter, r *http.Request) {
-	sessionID, err := r.Cookie("session_id")
+	_, err := getSessionUser(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	var user User
-	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id FROM users u "+
-		"INNER JOIN sessions s ON u.id = s.user_id "+
-		"WHERE s.session_id = $1", sessionID.Value).
-		Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID)
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+
 	vars := mux.Vars(r)
 	referralRequestID, err := strconv.Atoi(vars["referralRequestID"])
 	if err != nil {
-		http.Error(w, "Invalid referral request ID", http.StatusBadRequest)
+		handleError(w, "Invalid referral request ID", http.StatusBadRequest)
 		return
 	}
+
 	_, err = db.Exec("UPDATE referral_requests SET status = $1 WHERE id = $2", "Approved", referralRequestID)
 	if err != nil {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error approving referral request:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
 func DenyReferralRequestHandler(w http.ResponseWriter, r *http.Request) {
-	sessionID, err := r.Cookie("session_id")
+	_, err := getSessionUser(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	var user User
-	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id FROM users u "+
-		"INNER JOIN sessions s ON u.id = s.user_id "+
-		"WHERE s.session_id = $1", sessionID.Value).
-		Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID)
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+
 	vars := mux.Vars(r)
 	referralRequestID, err := strconv.Atoi(vars["referralRequestID"])
 	if err != nil {
-		http.Error(w, "Invalid referral request ID", http.StatusBadRequest)
+		handleError(w, "Invalid referral request ID", http.StatusBadRequest)
 		return
 	}
+
 	_, err = db.Exec("UPDATE referral_requests SET status = $1 WHERE id = $2", "Denied", referralRequestID)
 	if err != nil {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error denying referral request:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
 func GetReferralsSentHandler(w http.ResponseWriter, r *http.Request) {
-	sessionID, err := r.Cookie("session_id")
+	user, err := getSessionUser(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var user User
-	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id FROM users u "+
-		"INNER JOIN sessions s ON u.id = s.user_id "+
-		"WHERE s.session_id = $1", sessionID.Value).
-		Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID)
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -587,8 +518,8 @@ func GetReferralsSentHandler(w http.ResponseWriter, r *http.Request) {
 		"WHERE r.referrer_user_id = $1 "+
 		"ORDER BY r.created_at DESC", user.ID)
 	if err != nil {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error fetching referral requests:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -599,40 +530,30 @@ func GetReferralsSentHandler(w http.ResponseWriter, r *http.Request) {
 			&referralRequest.ReferrerUserID, &referralRequest.CompanyID, &referralRequest.RefereeClient, &referralRequest.RefereeClientEmail,
 			&referralRequest.CreatedAt, &referralRequest.Status, &referralRequest.CompanyName)
 		if err != nil {
+			handleError(w, "Internal Server Error", http.StatusInternalServerError)
 			log.Println("Error scanning referral request row:", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 		referralRequests = append(referralRequests, referralRequest)
 	}
 
 	if err := rows.Err(); err != nil {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error iterating over referral request rows:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if len(referralRequests) == 0 {
-		referralRequests = []ReferralRequest{} // Ensure an empty slice is returned if no records found
+		referralRequests = []ReferralRequest{}
 	}
 	json.NewEncoder(w).Encode(referralRequests)
 }
 
 func GetReferralsReceivedHandler(w http.ResponseWriter, r *http.Request) {
-	sessionID, err := r.Cookie("session_id")
+	user, err := getSessionUser(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var user User
-	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id FROM users u "+
-		"INNER JOIN sessions s ON u.id = s.user_id "+
-		"WHERE s.session_id = $1", sessionID.Value).
-		Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID)
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -643,8 +564,8 @@ func GetReferralsReceivedHandler(w http.ResponseWriter, r *http.Request) {
 		"WHERE r.company_id = $1 "+
 		"ORDER BY r.created_at DESC", user.CompanyID)
 	if err != nil {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error fetching referral requests:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -655,22 +576,22 @@ func GetReferralsReceivedHandler(w http.ResponseWriter, r *http.Request) {
 			&referralRequest.ReferrerUserID, &referralRequest.CompanyID, &referralRequest.RefereeClient, &referralRequest.RefereeClientEmail,
 			&referralRequest.CreatedAt, &referralRequest.Status, &referralRequest.CompanyName)
 		if err != nil {
+			handleError(w, "Internal Server Error", http.StatusInternalServerError)
 			log.Println("Error scanning referral request row:", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 		referralRequests = append(referralRequests, referralRequest)
 	}
 
 	if err := rows.Err(); err != nil {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error iterating over referral request rows:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if len(referralRequests) == 0 {
-		referralRequests = []ReferralRequest{} // Ensure an empty slice is returned if no records found
+		referralRequests = []ReferralRequest{}
 	}
 	json.NewEncoder(w).Encode(referralRequests)
 }
@@ -678,753 +599,278 @@ func GetReferralsReceivedHandler(w http.ResponseWriter, r *http.Request) {
 func CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 	var user User
 	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		handleError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Check if the company exists
-	var companyID int
-	err := db.QueryRow("SELECT id FROM companies WHERE id = $1", user.CompanyID).Scan(&companyID)
-	if err == sql.ErrNoRows {
-		// Company does not exist, insert it
-		err = db.QueryRow("INSERT INTO companies (name) VALUES ($1) RETURNING id", user.CompanyName).Scan(&companyID)
-		if err != nil {
-			log.Println("Error inserting company:", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-	} else if err != nil {
-		log.Println("Error querying company:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	var existingUserID int
+	err := db.QueryRow("SELECT id FROM users WHERE email = $1 OR username = $2", user.Email, user.Username).Scan(&existingUserID)
+	if err != nil && err != sql.ErrNoRows {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
+		log.Println("Error checking existing user:", err)
+		return
+	}
+	if existingUserID > 0 {
+		handleError(w, "User with given email or username already exists", http.StatusBadRequest)
 		return
 	}
 
-	// Now insert the user
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error hashing password:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	user.Password = string(hashedPassword)
 
-	_, err = db.Exec("INSERT INTO users (email, username, password, role, company_id) VALUES ($1, $2, $3, $4, $5)",
-		user.Email, user.Username, hashedPassword, user.Role, companyID)
+	err = db.QueryRow("INSERT INTO users (email, username, password, role, company_id) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+		user.Email, user.Username, user.Password, user.Role, user.CompanyID).Scan(&user.ID)
 	if err != nil {
-		log.Println("Error inserting user:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
+		log.Println("Error creating user:", err)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
 }
+
 func UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse user details from request body
-	var updatedUser User
-	if err := json.NewDecoder(r.Body).Decode(&updatedUser); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	sessionUser, err := getSessionUser(r)
+	if err != nil {
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// Only hash the password if it is updated
-	if updatedUser.Password != "" {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(updatedUser.Password), bcrypt.DefaultCost)
+	var user User
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		handleError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if sessionUser.ID != user.ID && sessionUser.Role != "admin" {
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if user.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 		if err != nil {
-			http.Error(w, "Error hashing password", http.StatusInternalServerError)
+			handleError(w, "Internal Server Error", http.StatusInternalServerError)
+			log.Println("Error hashing password:", err)
 			return
 		}
-		updatedUser.Password = string(hashedPassword)
+		user.Password = string(hashedPassword)
 	}
 
-	// Perform the update in the database
-	_, err := db.Exec("UPDATE users SET email = $1, username = $2, password = $3, role = $4, company_id = $5 WHERE id = $6",
-		updatedUser.Email, updatedUser.Username, updatedUser.Password, updatedUser.Role, updatedUser.CompanyID, updatedUser.ID)
+	query := "UPDATE users SET email = $1, username = $2, password = $3, role = $4, company_id = $5 WHERE id = $6"
+	_, err = db.Exec(query, user.Email, user.Username, user.Password, user.Role, user.CompanyID, user.ID)
 	if err != nil {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error updating user:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
 }
 
 func DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
-	var request struct {
-		UserID int `json:"user_id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		log.Println("Error decoding JSON:", err)
+	sessionUser, err := getSessionUser(r)
+	if err != nil {
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	tx, err := db.Begin()
-	if err != nil {
-		log.Println("Error beginning transaction:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	var user User
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		handleError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Delete dependent rows from referral_requests
-	_, err = tx.Exec("DELETE FROM referral_requests WHERE referrer_user_id = $1", request.UserID)
-	if err != nil {
-		tx.Rollback()
-		log.Println("Error deleting referral requests:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	if sessionUser.ID != user.ID && sessionUser.Role != "admin" {
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// Delete dependent rows from sessions
-	_, err = tx.Exec("DELETE FROM sessions WHERE user_id = $1", request.UserID)
+	_, err = db.Exec("DELETE FROM users WHERE id = $1", user.ID)
 	if err != nil {
-		tx.Rollback()
-		log.Println("Error deleting sessions:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	// Delete user
-	_, err = tx.Exec("DELETE FROM users WHERE id = $1", request.UserID)
-	if err != nil {
-		tx.Rollback()
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error deleting user:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		log.Println("Error committing transaction:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	log.Println("User deleted successfully:", request.UserID)
 }
 
 func GetAllUsersHandler(w http.ResponseWriter, r *http.Request) {
-
-	rows, err := db.Query(`SELECT u.id, u.email, u.username, u.role, u.company_id, c.name AS company_name
-                           FROM users u
-                           LEFT JOIN companies c ON u.company_id = c.id`)
+	_, err := getSessionUser(r)
 	if err != nil {
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var users []User
+	rows, err := db.Query("SELECT u.id, u.email, u.username, u.role, u.company_id, c.name FROM users u " +
+		"LEFT JOIN companies c ON u.company_id = c.id")
+	if err != nil {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error fetching users:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
 
-	var users []User
 	for rows.Next() {
 		var user User
 		err := rows.Scan(&user.ID, &user.Email, &user.Username, &user.Role, &user.CompanyID, &user.CompanyName)
 		if err != nil {
+			handleError(w, "Internal Server Error", http.StatusInternalServerError)
 			log.Println("Error scanning user row:", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 		users = append(users, user)
 	}
 
 	if err := rows.Err(); err != nil {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error iterating over user rows:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if len(users) == 0 {
-		users = []User{} // Ensure an empty slice is returned if no records found
+		users = []User{}
 	}
 	json.NewEncoder(w).Encode(users)
 }
 
 func GetUsersByCompanyHandler(w http.ResponseWriter, r *http.Request) {
-	sessionID, err := r.Cookie("session_id")
+	_, err := getSessionUser(r)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var user User
-	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id, c.name FROM users u "+
-		"LEFT JOIN companies c ON u.company_id = c.id "+
-		"INNER JOIN sessions s ON u.id = s.user_id "+
-		"WHERE s.session_id = $1", sessionID.Value).
-		Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID, &user.CompanyName)
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	vars := mux.Vars(r)
 	companyID, err := strconv.Atoi(vars["companyID"])
 	if err != nil {
-		http.Error(w, "Invalid company ID", http.StatusBadRequest)
+		handleError(w, "Invalid company ID", http.StatusBadRequest)
 		return
 	}
 
-	var companyUsers []User
-	rows, err := db.Query("SELECT id, email, username, role, company_id FROM users WHERE company_id = $1", companyID)
+	var users []User
+	rows, err := db.Query("SELECT u.id, u.email, u.username, u.role, u.company_id, c.name FROM users u "+
+		"LEFT JOIN companies c ON u.company_id = c.id WHERE u.company_id = $1", companyID)
 	if err != nil {
-		log.Println("Error fetching users:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
+		log.Println("Error fetching users by company:", err)
 		return
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var companyUser User
-		err := rows.Scan(&companyUser.ID, &companyUser.Email, &companyUser.Username, &companyUser.Role, &companyUser.CompanyID)
+		var user User
+		err := rows.Scan(&user.ID, &user.Email, &user.Username, &user.Role, &user.CompanyID, &user.CompanyName)
 		if err != nil {
+			handleError(w, "Internal Server Error", http.StatusInternalServerError)
 			log.Println("Error scanning user row:", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-		companyUsers = append(companyUsers, companyUser)
+		users = append(users, user)
 	}
 
 	if err := rows.Err(); err != nil {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error iterating over user rows:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if len(companyUsers) == 0 {
-		companyUsers = []User{} // Ensure an empty slice is returned if no records found
+	if len(users) == 0 {
+		users = []User{}
 	}
-	json.NewEncoder(w).Encode(companyUsers)
+	json.NewEncoder(w).Encode(users)
 }
 
 func CreateCompanyHandler(w http.ResponseWriter, r *http.Request) {
+	_, err := getSessionUser(r)
+	if err != nil {
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var company Company
 	if err := json.NewDecoder(r.Body).Decode(&company); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		handleError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	_, err := db.Exec("INSERT INTO companies (name) VALUES ($1)", company.Name)
+
+	var existingCompanyID int
+	err = db.QueryRow("SELECT id FROM companies WHERE name = $1", company.Name).Scan(&existingCompanyID)
+	if err != nil && err != sql.ErrNoRows {
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
+		log.Println("Error checking existing company:", err)
+		return
+	}
+	if existingCompanyID > 0 {
+		handleError(w, "Company with given name already exists", http.StatusBadRequest)
+		return
+	}
+
+	_, err = db.Exec("INSERT INTO companies (name) VALUES ($1)", company.Name)
 	if err != nil {
-		log.Println("Error inserting company:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
+		log.Println("Error creating company:", err)
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(company)
 }
 
 func DeleteCompanyHandler(w http.ResponseWriter, r *http.Request) {
-	var request struct {
-		CompanyID int `json:"company_id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		log.Println("Error decoding JSON:", err)
+	_, err := getSessionUser(r)
+	if err != nil {
+		handleError(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	tx, err := db.Begin()
-	if err != nil {
-		log.Println("Error beginning transaction:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	var company Company
+	if err := json.NewDecoder(r.Body).Decode(&company); err != nil {
+		handleError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Delete dependent rows from referral_requests
-	_, err = tx.Exec("DELETE FROM referral_requests WHERE company_id = $1", request.CompanyID)
+	_, err = db.Exec("DELETE FROM companies WHERE name = $1", company.Name)
 	if err != nil {
-		tx.Rollback()
-		log.Println("Error deleting referral requests:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	// Delete dependent rows from users
-	_, err = tx.Exec("DELETE FROM users WHERE company_id = $1", request.CompanyID)
-	if err != nil {
-		tx.Rollback()
-		log.Println("Error deleting users:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	// Delete the company
-	result, err := tx.Exec("DELETE FROM companies WHERE id = $1", request.CompanyID)
-	if err != nil {
-		tx.Rollback()
+		handleError(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println("Error deleting company:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		tx.Rollback()
-		log.Println("Error fetching rows affected:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	if rowsAffected == 0 {
-		tx.Rollback()
-		http.Error(w, "Company not found", http.StatusNotFound)
-		return
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		log.Println("Error committing transaction:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	log.Println("Company deleted successfully:", request.CompanyID)
 }
 
-// func UserProfileHandler(w http.ResponseWriter, r *http.Request) {
-// 	sessionCookie, err := r.Cookie("session_id")
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	var userID int
-// 	err = db.QueryRow("SELECT user_id FROM sessions WHERE session_id = $1 AND expires_at > NOW()", sessionCookie.Value).Scan(&userID)
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	var user struct {
-// 		Email     string `json:"email"`
-// 		Username  string `json:"username"`
-// 		Role      string `json:"role"`
-// 		CompanyID int    `json:"company_id"`
-// 	}
-// 	err = db.QueryRow("SELECT email, username, role, company_id FROM users WHERE id = $1", userID).Scan(&user.Email, &user.Username, &user.Role, &user.CompanyID)
-// 	if err != nil {
-// 		http.Error(w, "Error fetching user data", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	response := map[string]interface{}{
-// 		"email":    user.Email,
-// 		"username": user.Username,
-// 		"role":     user.Role,
-// 		"company":  user.CompanyID,
-// 	}
-// 	w.Header().Set("Content-Type", "application/json")
-// 	json.NewEncoder(w).Encode(response)
-// }
+func getSessionUser(r *http.Request) (*User, error) {
+	cookie, err := r.Cookie("session_id")
+	if err != nil {
+		return nil, fmt.Errorf("no session found")
+	}
 
-// func AdminProfileHandler(w http.ResponseWriter, r *http.Request) {
-// 	pageData := GetAuthenticatedUserData(r)
-// 	if !pageData.IsAuthenticated {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	users, err := getUsersByCompany(pageData.CompanyID)
-// 	if err != nil {
-// 		log.Println("Error fetching users:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	json.NewEncoder(w).Encode(users)
-// }
+	var user User
+	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id, c.name AS company_name "+
+		"FROM sessions s "+
+		"INNER JOIN users u ON u.id = s.user_id "+
+		"LEFT JOIN companies c ON u.company_id = c.id "+
+		"WHERE s.session_id = $1 AND s.expires_at > $2", cookie.Value, time.Now()).Scan(
+		&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID, &user.CompanyName)
 
-// func PlatformAdminHandler(w http.ResponseWriter, r *http.Request) {
-// 	pageData := GetAuthenticatedUserData(r)
-// 	if !pageData.IsAuthenticated {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	companies, err := GetAllCompanies()
-// 	if err != nil {
-// 		log.Println("Error fetching companies:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	json.NewEncoder(w).Encode(companies)
-// }
+	switch {
+	case err == sql.ErrNoRows:
+		return nil, fmt.Errorf("session not found or expired")
+	case err != nil:
+		return nil, fmt.Errorf("error retrieving session from database: %v", err)
+	}
 
-// func SuperAdminHandler(w http.ResponseWriter, r *http.Request) {
-// 	pageData := GetAuthenticatedUserData(r)
-// 	if !pageData.IsAuthenticated {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-
-// 	data := struct {
-// 		Companies        []Company         `json:"companies"`
-// 		Users            []User            `json:"users"`
-// 		ReferralRequests []ReferralRequest `json:"referralRequests"`
-// 	}{}
-
-// 	companies, err := GetAllCompanies()
-// 	if err != nil {
-// 		log.Println("Error fetching companies:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	data.Companies = companies
-
-// 	users, err := GetAllUsers()
-// 	if err != nil {
-// 		log.Println("Error fetching users:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	data.Users = users
-
-// 	referralRequests, err := GetAllReferralRequests()
-// 	if err != nil {
-// 		log.Println("Error fetching referral requests:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	data.ReferralRequests = referralRequests
-
-// 	w.Header().Set("Content-Type", "application/json")
-// 	json.NewEncoder(w).Encode(data)
-// }
-
-// func DeleteCompanyHandler(w http.ResponseWriter, r *http.Request) {
-// 	var request struct {
-// 		CompanyID int `json:"company_id"`
-// 	}
-// 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-// 		http.Error(w, err.Error(), http.StatusBadRequest)
-// 		return
-// 	}
-// 	_, err := db.Exec("DELETE FROM companies WHERE id = $1", request.CompanyID)
-// 	if err != nil {
-// 		log.Println("Error deleting company:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	w.WriteHeader(http.StatusOK)
-// }
-
-// func GetReferralRequestsByReferrerHandler(w http.ResponseWriter, r *http.Request) {
-// 	sessionID, err := r.Cookie("session_id")
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	var user User
-// 	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id FROM users u "+
-// 		"INNER JOIN sessions s ON u.id = s.user_id "+
-// 		"WHERE s.session_id = $1", sessionID.Value).
-// 		Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID)
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	vars := mux.Vars(r)
-// 	referrerUserID, err := strconv.Atoi(vars["referrerUserID"])
-// 	if err != nil {
-// 		http.Error(w, "Invalid referrer user ID", http.StatusBadRequest)
-// 		return
-// 	}
-// 	var referralRequests []ReferralRequest
-// 	rows, err := db.Query("SELECT r.id, r.title, r.content, r.username, r.referrer_user_id, r.company_id, r.referee_client, r.referee_client_email, r.created_at, r.status, c.name AS company_name "+
-// 		"FROM referral_requests r "+
-// 		"LEFT JOIN companies c ON r.company_id = c.id "+
-// 		"WHERE r.referrer_user_id = $1 "+
-// 		"ORDER BY r.created_at DESC", referrerUserID)
-// 	if err != nil {
-// 		log.Println("Error fetching referral requests:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	defer rows.Close()
-// 	for rows.Next() {
-// 		var referralRequest ReferralRequest
-// 		err := rows.Scan(&referralRequest.ID, &referralRequest.Title, &referralRequest.Content, &referralRequest.Username,
-// 			&referralRequest.ReferrerUserID, &referralRequest.CompanyID, &referralRequest.RefereeClient, &referralRequest.RefereeClientEmail,
-// 			&referralRequest.CreatedAt, &referralRequest.Status, &referralRequest.CompanyName)
-// 		if err != nil {
-// 			log.Println("Error scanning referral request row:", err)
-// 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 			return
-// 		}
-// 		referralRequests = append(referralRequests, referralRequest)
-// 	}
-// 	if err := rows.Err(); err != nil {
-// 		log.Println("Error iterating over referral request rows:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	json.NewEncoder(w).Encode(referralRequests)
-// }
-
-// func GetReferralRequestsHandler(w http.ResponseWriter, r *http.Request) {
-// 	rows, err := db.Query("SELECT id, title, content, username, referee_client, referee_client_email, created_at, status, company_name FROM referral_requests")
-// 	if err != nil {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 		return
-// 	}
-// 	defer rows.Close()
-
-// 	var requests []ReferralRequest
-// 	for rows.Next() {
-// 		var request ReferralRequest
-// 		if err := rows.Scan(&request.ID, &request.Title, &request.Content, &request.Username, &request.RefereeClient, &request.RefereeClientEmail, &request.CreatedAt, &request.Status, &request.CompanyName); err != nil {
-// 			http.Error(w, err.Error(), http.StatusInternalServerError)
-// 			return
-// 		}
-// 		requests = append(requests, request)
-// 	}
-
-// 	if err := json.NewEncoder(w).Encode(requests); err != nil {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 	}
-// }
-
-// func getUsersByCompany(companyID int) ([]User, error) {
-// 	rows, err := db.Query("SELECT id, email, username, role, company_id FROM users WHERE company_id = $1", companyID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer rows.Close()
-// 	var users []User
-// 	for rows.Next() {
-// 		var user User
-// 		err := rows.Scan(&user.ID, &user.Email, &user.Username, &user.Role, &user.CompanyID)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		users = append(users, user)
-// 	}
-// 	return users, nil
-// }
-
-// func GetAuthenticatedUserData(r *http.Request) PageData {
-// 	var pageData PageData
-// 	sessionCookie, err := r.Cookie("session_id")
-// 	if err != nil {
-// 		pageData.IsAuthenticated = false
-// 		log.Println("No session cookie found:", err)
-// 		return pageData
-// 	}
-// 	log.Println("Session cookie found:", sessionCookie.Value)
-// 	var userID int
-// 	err = db.QueryRow("SELECT user_id FROM sessions WHERE session_id = $1 AND expires_at > NOW()", sessionCookie.Value).Scan(&userID)
-// 	if err != nil {
-// 		pageData.IsAuthenticated = false
-// 		log.Println("Invalid session:", err)
-// 		return pageData
-// 	}
-// 	var username, role string
-// 	var companyID int
-// 	err = db.QueryRow("SELECT username, role, company_id FROM users WHERE id = $1", userID).Scan(&username, &role, &companyID)
-// 	if err != nil {
-// 		pageData.IsAuthenticated = false
-// 		log.Println("Error fetching user data:", err)
-// 		return pageData
-// 	}
-// 	pageData.UserID = userID
-// 	pageData.Username = username
-// 	pageData.Role = role
-// 	pageData.CompanyID = companyID
-// 	pageData.IsAuthenticated = true
-// 	return pageData
-// }
-
-// func GetAllCompanies() ([]Company, error) {
-// 	var companies []Company
-
-// 	rows, err := db.Query("SELECT id, name FROM companies")
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer rows.Close()
-
-// 	for rows.Next() {
-// 		var company Company
-// 		err := rows.Scan(&company.ID, &company.Name)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		companies = append(companies, company)
-// 	}
-// 	if err := rows.Err(); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return companies, nil
-// }
-
-// func GetAllUsers() ([]User, error) {
-// 	var users []User
-
-// 	query := `
-// 		SELECT users.id, users.email, users.username, users.role, users.company_id, companies.name
-// 		FROM users
-// 		LEFT JOIN companies ON users.company_id = companies.id
-// 	`
-// 	rows, err := db.Query(query)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer rows.Close()
-
-// 	for rows.Next() {
-// 		var user User
-// 		err := rows.Scan(&user.ID, &user.Email, &user.Username, &user.Role, &user.CompanyID, &user.CompanyName)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		users = append(users, user)
-// 	}
-// 	if err := rows.Err(); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return users, nil
-// }
-
-// func GetAllReferralRequests() ([]ReferralRequest, error) {
-// 	var requests []ReferralRequest
-
-// 	rows, err := db.Query(`
-// 		SELECT rr.id, rr.title, rr.content, u.username, rr.referee_client, rr.referee_client_email, rr.created_at, rr.status, c.name
-// 		FROM referral_requests rr
-// 		JOIN users u ON rr.referrer_user_id = u.id
-// 		JOIN companies c ON rr.company_id = c.id
-// 	`)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer rows.Close()
-
-// 	for rows.Next() {
-// 		var request ReferralRequest
-// 		err := rows.Scan(&request.ID, &request.Title, &request.Content, &request.Username, &request.RefereeClient, &request.RefereeClientEmail, &request.CreatedAt, &request.Status, &request.CompanyName)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		requests = append(requests, request)
-// 	}
-// 	if err := rows.Err(); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return requests, nil
-// }
-
-// func GetReferralRequestsByCompanyID(companyID int) ([]ReferralRequest, error) {
-// 	rows, err := db.Query(`
-//         SELECT
-//             referral_requests.id, referral_requests.title, referral_requests.content, referral_requests.referrer_user_id, referral_requests.company_id, referral_requests.referee_client, referral_requests.referee_client_email, referral_requests.created_at, referral_requests.status,users.username
-//         FROM
-//             referral_requests
-//         JOIN
-//             users ON referral_requests.referrer_user_id = users.id
-//         WHERE
-//             referral_requests.company_id = $1`, companyID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer rows.Close()
-
-// 	var requests []ReferralRequest
-// 	for rows.Next() {
-// 		var request ReferralRequest
-// 		err := rows.Scan(&request.ID, &request.Title, &request.Content, &request.ReferrerUserID, &request.CompanyID, &request.RefereeClient, &request.RefereeClientEmail, &request.CreatedAt, &request.Status, &request.Username)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		requests = append(requests, request)
-// 	}
-
-// 	if err := rows.Err(); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return requests, nil
-// }
-
-// func ReferralRequestHandler(w http.ResponseWriter, r *http.Request) {
-// 	sessionID, err := r.Cookie("session_id")
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-
-// 	var user User
-// 	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id FROM users u "+
-// 		"INNER JOIN sessions s ON u.id = s.user_id "+
-// 		"WHERE s.session_id = $1", sessionID.Value).
-// 		Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID)
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-
-// 	var referralRequests []ReferralRequest
-// 	rows, err := db.Query("SELECT r.id, r.title, r.content, r.username, r.referrer_user_id, r.company_id, r.referee_client, r.referee_client_email, r.created_at, r.status, c.name AS company_name "+
-// 		"FROM referral_requests r "+
-// 		"LEFT JOIN companies c ON r.company_id = c.id "+
-// 		"WHERE r.company_id = $1 "+
-// 		"ORDER BY r.created_at DESC", user.CompanyID)
-// 	if err != nil {
-// 		log.Println("Error fetching referral requests:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	defer rows.Close()
-
-// 	for rows.Next() {
-// 		var referralRequest ReferralRequest
-// 		err := rows.Scan(&referralRequest.ID, &referralRequest.Title, &referralRequest.Content, &referralRequest.Username,
-// 			&referralRequest.ReferrerUserID, &referralRequest.CompanyID, &referralRequest.RefereeClient, &referralRequest.RefereeClientEmail,
-// 			&referralRequest.CreatedAt, &referralRequest.Status, &referralRequest.CompanyName)
-// 		if err != nil {
-// 			log.Println("Error scanning referral request row:", err)
-// 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 			return
-// 		}
-// 		if referralRequest.CompanyName == "" {
-// 			log.Printf("Empty company name for referral request ID: %d, Company ID: %d", referralRequest.ID, referralRequest.CompanyID)
-// 		}
-// 		referralRequests = append(referralRequests, referralRequest)
-// 	}
-
-// 	if err := rows.Err(); err != nil {
-// 		log.Println("Error iterating over referral request rows:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-
-// 	w.Header().Set("Content-Type", "application/json")
-// 	if err := json.NewEncoder(w).Encode(referralRequests); err != nil {
-// 		log.Println("Error encoding referral requests to JSON:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 	}
-// }
-
-// func SubmitReferralRequestHandler(w http.ResponseWriter, r *http.Request) {
-// 	sessionID, err := r.Cookie("session_id")
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	var user User
-// 	err = db.QueryRow("SELECT u.id, u.email, u.username, u.password, u.role, u.company_id FROM users u "+
-// 		"INNER JOIN sessions s ON u.id = s.user_id "+
-// 		"WHERE s.session_id = $1", sessionID.Value).
-// 		Scan(&user.ID, &user.Email, &user.Username, &user.Password, &user.Role, &user.CompanyID)
-// 	if err != nil {
-// 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-// 	var referralRequest ReferralRequest
-// 	if err := json.NewDecoder(r.Body).Decode(&referralRequest); err != nil {
-// 		http.Error(w, err.Error(), http.StatusBadRequest)
-// 		return
-// 	}
-// 	_, err = db.Exec("UPDATE referral_requests SET status = $1 WHERE id = $2", referralRequest.Status, referralRequest.ID)
-// 	if err != nil {
-// 		log.Println("Error updating referral request:", err)
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	w.WriteHeader(http.StatusOK)
-// }
+	return &user, nil
+}
